@@ -20,6 +20,7 @@
  */
 
 const HIGHEST_POSSIBLE_Z_INDEX = 2147483647;
+let localMediaStream;
 
 function takePicture (success, error, opts) {
     if (opts && opts[2] === 1) {
@@ -50,50 +51,85 @@ function takePicture (success, error, opts) {
 }
 
 function capture (success, errorCallback, opts) {
-    let localMediaStream;
     let targetWidth = opts[3];
     let targetHeight = opts[4];
+    const customCameraContainer = opts[12];
+    const customCaptureButton = opts[13];
+    const customCancelButton = opts[14];
 
-    targetWidth = targetWidth === -1 ? 320 : targetWidth;
-    targetHeight = targetHeight === -1 ? 240 : targetHeight;
+    const customElements = {customCameraContainer, customCaptureButton, customCancelButton};
 
-    const video = document.createElement('video');
-    const button = document.createElement('button');
-    const parent = document.createElement('div');
+    const parent = customCameraContainer ? document.getElementById(customCameraContainer) : createCameraContainer();
+    const video = createVideoStreamContainer(parent, targetWidth, targetHeight);
+    const captureButton = customCaptureButton ? document.getElementById(customCaptureButton) : createButton(parent, 'Capture');
+    const cancelButton = customCancelButton ? document.getElementById(customCancelButton) : createButton(parent, 'Cancel');
+    // start video stream
+    startLocalMediaStream(errorCallback, video);
+
+    // handle button click events
+    handleCaptureButton(success, errorCallback, captureButton, video, customElements);
+    handleCancelButton(errorCallback, cancelButton, video, customElements);
+}
+
+
+function createCameraContainer () {
+    let parent = document.createElement('div');
     parent.style.position = 'relative';
     parent.style.zIndex = HIGHEST_POSSIBLE_Z_INDEX;
     parent.className = 'cordova-camera-capture';
-    parent.appendChild(video);
-    parent.appendChild(button);
+    document.body.appendChild(parent);
 
+    return parent;
+}
+
+function createVideoStreamContainer (parent, targetWidth, targetHeight) {
+    targetWidth = targetWidth === -1 ? 320 : targetWidth;
+    targetHeight = targetHeight === -1 ? 240 : targetHeight;
+
+    let video = document.createElement('video');
     video.width = targetWidth;
     video.height = targetHeight;
-    button.innerHTML = 'Capture!';
 
-    button.onclick = function () {
-        // create a canvas and capture a frame from video stream
+    parent.appendChild(video);
+
+    return video;
+}
+
+function createButton (parent, innerText) {
+    let button = document.createElement('button');
+    button.innerHTML = innerText;
+
+    parent.appendChild(button);
+
+    return button;
+}
+
+function handleCaptureButton (successCallback, errorCallback, captureButton, video, customElements) {
+    captureButton.onclick = function () {
+// create a canvas and capture a frame from video stream
         const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, targetWidth, targetHeight);
+        canvas.width = video.width;
+        canvas.height = video.height;
+        canvas.getContext('2d').drawImage(video, 0, 0, video.width, video.height);
 
         // convert image stored in canvas to base64 encoded image
         const imageData = canvas.toDataURL('image/png');
 
-        // stop video stream, remove video and button.
-        // Note that MediaStream.stop() is deprecated as of Chrome 47.
-        if (localMediaStream.stop) {
-            localMediaStream.stop();
-        } else {
-            localMediaStream.getTracks().forEach(function (track) {
-                track.stop();
-            });
-        }
-        parent.parentNode.removeChild(parent);
+        stopLocalMediaStream(video, customElements);
 
-        return success(imageData);
+        return successCallback(imageData);
     };
+}
 
+function handleCancelButton (errorCallback, cancelButton, video, customElements) {
+    cancelButton.onclick = function () {
+        // stop video stream
+        stopLocalMediaStream(video, customElements);
+        errorCallback("Cancelled");
+    };
+}
+
+function startLocalMediaStream (errorCallback, video) {
     navigator.getUserMedia = navigator.getUserMedia ||
                              navigator.webkitGetUserMedia ||
                              navigator.mozGetUserMedia ||
@@ -107,17 +143,51 @@ function capture (success, errorCallback, opts) {
             video.src = window.URL.createObjectURL(localMediaStream);
         }
         video.play();
-        document.body.appendChild(parent);
     };
 
     if (navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
             .then(successCallback)
             .catch(errorCallback);
     } else if (navigator.getUserMedia) {
-        navigator.getUserMedia({ video: true, audio: false }, successCallback, errorCallback);
+        navigator.getUserMedia( {video: { facingMode: "environment" }, audio: false }, successCallback, errorCallback);
     } else {
         alert('Browser does not support camera :(');
+    }
+}
+
+function stopLocalMediaStream (video, customElements) {
+    // stop video stream, remove video and button.
+    // Note that MediaStream.stop() is deprecated as of Chrome 47.
+    if (localMediaStream.stop) {
+        localMediaStream.stop();
+    } else {
+        localMediaStream.getTracks().forEach(function (track) {
+            track.stop();
+        });
+    }
+
+    // remove newly created elements
+    removeAppendedCameraElements(video, customElements);
+}
+
+function removeAppendedCameraElements (video, customElements) {
+    const parent = video.parentNode;
+
+    if (!customElements.customCameraContainer) {
+        parent.parentNode.removeChild(parent);
+    } else if (!customElements.customCaptureButton && !customElements.customCancelButton) {
+        while (parent.hasChildNodes()) {
+            parent.removeChild(parent.lastChild);
+        }
+    } else if (parent.hasChildNodes() && !customElements.customCaptureButton) {
+        parent.removeChild(video);
+        parent.removeChild(parent.lastChild);
+    } else if (parent.hasChildNodes() && !customElements.customCancelButton) {
+        parent.removeChild(video);
+        parent.removeChild(parent.lastChild);
+    } else {
+        parent.removeChild(video);
     }
 }
 

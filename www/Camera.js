@@ -1,4 +1,5 @@
-/*
+cordova.define('cordova-plugin-camera.camera', function (require, exports, module) {
+                /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -142,13 +143,18 @@ cameraExport.getPicture = function (successCallback, errorCallback, options) {
     const saveToPhotoAlbum = !!options.saveToPhotoAlbum;
     const popoverOptions = getValue(options.popoverOptions, null);
     const cameraDirection = getValue(options.cameraDirection, Camera.Direction.BACK);
+    const customCameraContainer = getValue(options.customCameraContainer, null);
+    const customCaptureButton = getValue(options.customCaptureButton, null);
+    const customCancelButton = getValue(options.customCancelButton, null);
+    const customSourceInput = getValue(options.customSourceInput, null);
 
     if (allowEdit) {
         console.warn('allowEdit is deprecated. It does not work reliably on all platforms. Utilise a dedicated image editing library instead. allowEdit functionality is scheduled to be removed in a future release.');
     }
-
+    
     const args = [quality, destinationType, sourceType, targetWidth, targetHeight, encodingType,
-        mediaType, allowEdit, correctOrientation, saveToPhotoAlbum, popoverOptions, cameraDirection];
+        mediaType, allowEdit, correctOrientation, saveToPhotoAlbum, popoverOptions, cameraDirection,
+        customCameraContainer, customCaptureButton, customCancelButton, customSourceInput];
 
     exec(successCallback, errorCallback, 'Camera', 'takePicture', args);
     // XXX: commented out
@@ -181,3 +187,5 @@ cameraExport.cleanup = function (successCallback, errorCallback) {
 };
 
 module.exports = cameraExport;
+
+            });
